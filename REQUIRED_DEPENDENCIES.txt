@@ -1,0 +1,18 @@
+# Backend Dependencies to Install
+
+Run this command in your backend directory:
+
+npm install multer
+
+# Verify these are already installed:
+# - socket.io
+# - express
+# - mongoose
+# - cloudinary
+# - bcryptjs
+# - jsonwebtoken
+# - dotenv
+# - cors
+
+# If any are missing, install them:
+npm install socket.io express mongoose cloudinary bcryptjs jsonwebtoken dotenv cors
