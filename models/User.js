@@ -2,6 +2,15 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
+const vehicleSchema = new mongoose.Schema({
+  make: { type: String, default: "Hyundai" }, // Default ga Hyundai untundi
+  model: { type: String, required: true }, // e.g., Creta
+  year: { type: String, required: true }, // e.g., 2022
+  variant: { type: String, required: true }, // e.g., SX (O)
+  fuelType: { type: String, required: true }, // e.g., Diesel
+  isPrimary: { type: Boolean, default: false }, // Default car ga pettukovadaniki
+});
+
 /**
  * User Schema
  * Stores customer information with authentication and profile details
@@ -89,6 +98,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       select: false,
     },
+    garage: [vehicleSchema],
     passwordResetToken: String,
     passwordResetExpires: Date,
   },

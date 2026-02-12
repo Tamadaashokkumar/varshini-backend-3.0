@@ -214,7 +214,13 @@ import {
   forgotPassword,
   resetPassword,
   googleLogin,
+  getGarage,
+  addVehicleToGarage,
+  removeVehicleFromGarage,
+  syncGarage,
+  checkSession,
 } from "../controllers/authController.js";
+import { decodeVinHandler } from "../controllers/vinController.js";
 
 const router = express.Router();
 
@@ -390,5 +396,20 @@ router.patch("/reset-password/:token", resetPassword);
 
 // Google Auth Route
 router.post("/google-login", googleLogin);
+
+// --- GARAGE ROUTES ---
+// 1. Get Garage & Add Vehicle
+router
+  .route("/garage")
+  .get(protect, getGarage)
+  .post(protect, addVehicleToGarage);
+
+// 2. Remove Vehicle
+router.route("/garage/:vehicleId").delete(protect, removeVehicleFromGarage);
+
+// 3. Sync Local Garage (Call this immediately after Login on Frontend)
+router.post("/garage/sync", protect, syncGarage);
+router.post("/garage/decode-vin", decodeVinHandler);
+router.get("/check-session", checkSession);
 
 export default router;

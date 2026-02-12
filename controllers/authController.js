@@ -1077,3 +1077,189 @@ export const googleLogin = asyncHandler(async (req, res) => {
     throw new AppError("Google authentication failed. Please try again.", 401);
   }
 });
+
+// @desc    Get user garage
+// @route   GET /api/users/garage
+// @access  Private
+export const getGarage = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+  if (user) {
+    res.json(user.garage);
+  } else {
+    res.status(404);
+    throw new Error("User not found");
+  }
+});
+
+// @desc    Add a vehicle to garage
+// @route   POST /api/users/garage
+// @access  Private
+export const addVehicleToGarage = asyncHandler(async (req, res) => {
+  const { model, year, variant, fuelType } = req.body;
+  const user = await User.findById(req.user._id);
+
+  if (user) {
+    // Check duplicates: అదే కారు ఇప్పటికే ఉందా అని చెక్ చేయడం
+    const isDuplicate = user.garage.find(
+      (car) =>
+        car.model === model &&
+        car.year === year &&
+        car.variant === variant &&
+        car.fuelType === fuelType,
+    );
+
+    if (isDuplicate) {
+      res.status(400);
+      throw new Error("This vehicle is already in your garage");
+    }
+
+    // కొత్త కారుని యాడ్ చేయడం
+    const newVehicle = {
+      model,
+      year,
+      variant,
+      fuelType,
+      isPrimary: user.garage.length === 0,
+    };
+    user.garage.push(newVehicle);
+
+    await user.save();
+    res.status(201).json(user.garage);
+  } else {
+    res.status(404);
+    throw new Error("User not found");
+  }
+});
+
+// @desc    Remove vehicle from garage
+// @route   DELETE /api/users/garage/:vehicleId
+// @access  Private
+export const removeVehicleFromGarage = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+
+  if (user) {
+    user.garage = user.garage.filter(
+      (car) => car._id.toString() !== req.params.vehicleId,
+    );
+    await user.save();
+    res.json(user.garage);
+  } else {
+    res.status(404);
+    throw new Error("User not found");
+  }
+});
+
+// 🔥 @desc    Sync Local Storage Garage to Database (Hybrid Approach)
+// @route   POST /api/users/garage/sync
+// @access  Private
+export const syncGarage = asyncHandler(async (req, res) => {
+  const { localGarage } = req.body; // Frontend నుండి వచ్చే లోకల్ కార్ల లిస్ట్
+  const user = await User.findById(req.user._id);
+
+  if (user && localGarage && Array.isArray(localGarage)) {
+    // లోకల్ స్టోరేజ్‌లో ఉన్న ప్రతి కారుని లూప్ చేసి, డేటాబేస్‌లో లేకపోతే యాడ్ చేస్తాం
+    localGarage.forEach((localCar) => {
+      const exists = user.garage.find(
+        (dbCar) =>
+          dbCar.model === localCar.model &&
+          dbCar.year === localCar.year &&
+          dbCar.variant === localCar.variant,
+      );
+
+      if (!exists) {
+        user.garage.push({
+          model: localCar.model,
+          year: localCar.year,
+          variant: localCar.variant,
+          fuelType: localCar.fuelType || "Petrol", // Default fallback
+          isPrimary: user.garage.length === 0, // మొదటి కారు అయితే Primary అవుతుంది
+        });
+      }
+    });
+
+    await user.save();
+    res.json({ success: true, garage: user.garage });
+  } else {
+    // లోకల్ డేటా లేకపోతే, ఉన్న గ్యారేజ్ రిటర్న్ చేస్తాం
+    res.json({ success: true, garage: user ? user.garage : [] });
+  }
+});
+
+/**
+ * @desc    Check Session & Bootstrap User (For Initial Page Load)
+ * @route   GET /api/auth/check-session
+ * @access  Public (Uses Cookie)
+ */
+export const checkSession = asyncHandler(async (req, res) => {
+  // 1. Get Refresh Token from Cookie
+  const refreshToken = req.cookies.jwt || req.cookies.refreshToken;
+
+  // 🛑 Token లేకపోతే: ఇది Guest User (Error Throw చేయకూడదు, just success: false పంపాలి)
+  if (!refreshToken) {
+    return res.status(200).json({
+      success: false,
+      isAuthenticated: false,
+      message: "No active session",
+    });
+  }
+
+  try {
+    // 2. Verify Token Signature
+    const decoded = verifyRefreshToken(refreshToken);
+
+    // 3. Find User & Check Token Match (Security Check)
+    const user = await User.findById(decoded.id).select("+refreshToken");
+
+    // User లేకపోయినా, లేదా DB లో ఉన్న టోకెన్ కుకీలో ఉన్న టోకెన్ వేరైనా (Token Reuse Attack).. లాగిన్ తీసేయాలి
+    if (!user || user.refreshToken !== refreshToken) {
+      res.clearCookie("jwt", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      });
+      return res.status(200).json({ success: false, isAuthenticated: false });
+    }
+
+    // 4. Generate NEW Access Token (Memory కోసం)
+    // గమనిక: మనం ఇక్కడ Refresh Token ని రొటేట్ చేయట్లేదు. పేజీ రీలోడ్ అయిన ప్రతిసారీ DB ని మార్చడం మంచిది కాదు.
+    // కేవలం కొత్త Access Token ఇస్తున్నాం.
+    const { accessToken } = generateTokenPair({
+      id: user._id,
+      email: user.email,
+      role: user.role,
+    });
+
+    // 5. Success Response
+    // sendSuccess బదులు డైరెక్ట్ గా json వాడుతున్నాం, ఫ్రంట్‌ఎండ్ స్ట్రక్చర్ కి తగ్గట్టు
+    return res.status(200).json({
+      success: true,
+      isAuthenticated: true,
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          garage: user.garage, // Garage data కూడా ఇక్కడే పంపిస్తున్నాం (Fast Loading కోసం)
+          profilePic: user.profilePic,
+        },
+        accessToken,
+      },
+    });
+  } catch (error) {
+    // Token Expired or Invalid Signature
+    // కుకీని క్లియర్ చేసి, Guest అని చెప్పాలి
+    res.clearCookie("jwt", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    });
+
+    return res.status(200).json({
+      success: false,
+      isAuthenticated: false,
+      message: "Session expired",
+    });
+  }
+});

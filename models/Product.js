@@ -25,7 +25,7 @@
 //       type: String,
 //       trim: true,
 //       lowercase: true,
-//       index: true 
+//       index: true
 //     },
 //     description: {
 //       type: String,
@@ -45,10 +45,10 @@
 //     // Instead of just a string, we now store Model + Year Range
 //     compatibleModels: [
 //       {
-//         modelName: { 
-//           type: String, 
+//         modelName: {
+//           type: String,
 //           required: true,
-//           trim: true 
+//           trim: true
 //           // Note: Enum removed to allow new car launches (e.g., Exter, Ioniq 5)
 //         },
 //         yearFrom: { type: Number, required: true }, // e.g., 2015
@@ -104,7 +104,7 @@
 //       of: String, // Dynamic key-value pairs (e.g., Material: Plastic, Color: Black)
 //     },
 //     warrantyPeriod: {
-//       type: String, 
+//       type: String,
 //       default: 'No Warranty',
 //     },
 //     manufacturer: {
@@ -209,25 +209,26 @@
 
 // export default Product;
 
+import mongoose from "mongoose";
+import slugify from "slugify"; // npm install slugify (Optional but recommended)
 
-
-
-import mongoose from 'mongoose';
-
-/**
- * Product Schema
- * Stores Hyundai spare parts information with images, pricing, stock, AND Advanced Analytics
- */
 const productSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, 'Product name is required'],
+      required: [true, "Product name is required"],
       trim: true,
+    },
+    // 🔥 NEW: SEO Friendly URL
+    slug: {
+      type: String,
+      unique: true,
+      lowercase: true,
+      index: true,
     },
     partNumber: {
       type: String,
-      required: [true, 'Part number is required'],
+      required: [true, "Part number is required"],
       unique: true,
       trim: true,
       uppercase: true,
@@ -236,74 +237,109 @@ const productSchema = new mongoose.Schema(
       type: String,
       trim: true,
       lowercase: true,
-      index: true 
+      index: true,
     },
     description: {
       type: String,
-      required: [true, 'Product description is required'],
+      required: [true, "Product description is required"],
     },
     category: {
       type: String,
-      required: [true, 'Category is required'],
-      enum: ['Engine', 'Brake', 'Electrical', 'Body', 'Accessories', 'Suspension', 'Transmission', 'Interior', 'Exterior', 'Service Parts'],
+      required: [true, "Category is required"],
+      enum: [
+        "Engine",
+        "Brake",
+        "Electrical",
+        "Body",
+        "Accessories",
+        "Suspension",
+        "Transmission",
+        "Interior",
+        "Exterior",
+        "Service Parts",
+      ],
+      index: true, // Index added for faster filtering
     },
     subcategory: {
       type: String,
       trim: true,
     },
+
+    // --- COMPATIBILITY ---
     compatibleModels: [
       {
         modelName: { type: String, required: true, trim: true },
         yearFrom: { type: Number, required: true },
-        yearTo: { type: Number }, 
-        variant: { type: String, trim: true }
-      }
+        yearTo: { type: Number }, // If null, implies "Present"
+        variant: { type: String, trim: true },
+        fuelType: {
+          type: String,
+          enum: ["Petrol", "Diesel", "CNG", "EV", "Universal"],
+          default: "Universal", // కొన్ని పార్ట్స్ (Ex: Mats) అందరికీ సెట్ అవుతాయి
+        },
+
+        // ✅ NEW FIELD: Variant
+        variant: {
+          type: String,
+          trim: true,
+          default: "All", // "All" అంటే అన్ని వేరియంట్స్ కి సరిపోతుంది
+        },
+      },
     ],
-    
-    // --- PRICING SECTION ---
+
+    // --- PRICING & TAX ---
     price: {
       type: Number,
-      required: [true, 'Price is required'],
-      min: [0, 'Price cannot be negative'],
+      required: [true, "Price is required"],
+      min: 0,
     },
     discountPrice: {
       type: Number,
-      min: [0, 'Discount price cannot be negative'],
+      min: 0,
+    },
+    // 🔥 NEW: GST Information
+    gstRate: {
+      type: Number,
+      default: 18, // e.g., 18% or 28%
+    },
+    hsnCode: {
+      type: String, // Required for invoices
+      trim: true,
     },
 
-    // 🔥 NEW ADDITION: Dynamic Pricing & Flash Sales
-    // ఇది "Flash Sale" ఫీచర్ కోసం ఉపయోగపడుతుంది.
     flashSale: {
       isActive: { type: Boolean, default: false },
-      salePrice: { type: Number }, // ఆఫర్ ధర
-      startTime: { type: Date },   // సేల్ ఎప్పుడు మొదలవ్వాలి?
-      endTime: { type: Date }      // కౌంట్‌డౌన్ టైమర్ కోసం (Expire time)
+      salePrice: { type: Number },
+      startTime: { type: Date },
+      endTime: { type: Date },
     },
 
     // --- STOCK & INVENTORY ---
     stock: {
       type: Number,
-      required: [true, 'Stock quantity is required'],
-      min: [0, 'Stock cannot be negative'],
+      required: true,
+      min: 0,
       default: 0,
     },
     stockStatus: {
       type: String,
-      enum: ['In Stock', 'Low Stock', 'Out of Stock'],
-      default: 'Out of Stock',
+      enum: ["In Stock", "Low Stock", "Out of Stock"],
+      default: "Out of Stock",
     },
-    lowStockThreshold: {
-      type: Number,
-      default: 5,
-    },
+    lowStockThreshold: { type: Number, default: 5 },
 
-    // 🔥 NEW ADDITION: AI Forecasting Data
-    // AI లాజిక్ పని చేయడానికి ఈ డేటా అవసరం.
+    // 🔥 UPDATE: Limits per user
+    maxOrderQuantity: { type: Number, default: 10 }, // Prevent hoarding
+
     inventoryAnalytics: {
-      averageMonthlySales: { type: Number, default: 0 }, // AI దీనిని అప్‌డేట్ చేస్తుంది
-      reorderLevel: { type: Number, default: 10 },       // ఇది దాటగానే సప్లయర్‌కి మెయిల్ వెళ్లాలి
-      leadTimeDays: { type: Number, default: 7 },        // ఆర్డర్ పెడితే స్టాక్ రావడానికి ఎన్ని రోజులు పడుతుంది?
-      supplierEmail: { type: String, trim: true }        // "Smart Restock" మెయిల్ ఎవరికీ వెళ్లాలి?
+      averageMonthlySales: { type: Number, default: 0 },
+      reorderLevel: { type: Number, default: 10 },
+      leadTimeDays: { type: Number, default: 7 },
+      // 🔥 UPDATE: Changed to Reference ID instead of email string
+      supplier: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Supplier", // Create a separate Supplier model later
+      },
     },
 
     // --- MEDIA ---
@@ -311,6 +347,7 @@ const productSchema = new mongoose.Schema(
       {
         url: { type: String, required: true },
         publicId: { type: String, required: true },
+        isPrimary: { type: Boolean, default: false }, // To select thumbnail
       },
     ],
 
@@ -319,114 +356,117 @@ const productSchema = new mongoose.Schema(
       type: Map,
       of: String,
     },
-    warrantyPeriod: {
-      type: String, 
-      default: 'No Warranty',
-    },
-    manufacturer: {
-      type: String,
-      default: 'Hyundai Mobis',
-    },
+    warrantyPeriod: { type: String, default: "No Warranty" },
+    manufacturer: { type: String, default: "Hyundai Mobis" },
+    originCountry: { type: String, default: "India" }, // Good for compliance
 
-    // 🔥 NEW ADDITION: Returns & Policies
-    // RMA System కోసం ఈ ఫీల్డ్స్ అవసరం.
     returnPolicy: {
-      isReturnable: { type: Boolean, default: true }, // ఉదా: Electrical parts return చేయలేము
-      returnWindowDays: { type: Number, default: 7 }, // ఎన్ని రోజుల్లో రిటర్న్ చేయొచ్చు?
-      restockingFee: { type: Number, default: 0 }     // రిటర్న్ చేస్తే ఏమైనా చార్జ్ ఉందా?
+      isReturnable: { type: Boolean, default: true },
+      returnWindowDays: { type: Number, default: 7 },
+      restockingFee: { type: Number, default: 0 },
     },
 
     // --- SYSTEM FIELDS ---
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
-    isDeleted: {
-      type: Boolean,
-      default: false,
-    },
+    isActive: { type: Boolean, default: true },
+    isDeleted: { type: Boolean, default: false },
     tags: [String],
-    
-    // 🔥 NEW ADDITION: For Logistics Calculation
+
     shippingInfo: {
-      weight: { type: Number, default: 0 }, // kg (Shiprocket కి అవసరం)
+      weight: { type: Number, default: 0 }, // kg
       length: { type: Number, default: 0 }, // cm
-      width: { type: Number, default: 0 },  // cm
-      height: { type: Number, default: 0 }  // cm
+      width: { type: Number, default: 0 }, // cm
+      height: { type: Number, default: 0 }, // cm
     },
 
-    averageRating: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 5,
-    },
-    totalReviews: {
-      type: Number,
-      default: 0,
-    },
-    totalSales: {
-      type: Number,
-      default: 0,
-    },
+    averageRating: { type: Number, default: 0, min: 0, max: 5 },
+    totalReviews: { type: Number, default: 0 },
+    totalSales: { type: Number, default: 0 },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // --- PRE-SAVE HOOKS ---
 
-productSchema.pre('save', function (next) {
-  // 1. Sanitize Part Number
-  if (this.isModified('partNumber')) {
-    this.sanitizedPartNumber = this.partNumber.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+productSchema.pre("save", function (next) {
+  // 1. Slug Generation (Updated Logic)
+  if (this.isModified("name") || this.isNew) {
+    const baseSlug = slugify(this.name, { lower: true, strict: true });
+    // partNumber లో స్పెషల్ క్యారెక్టర్స్ ఉంటే తీసేసి, క్లీన్ గా ఉండేలా చూద్దాం
+    const cleanPartNumber = this.partNumber
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .toLowerCase();
+
+    this.slug = `${baseSlug}-${cleanPartNumber}`;
   }
 
-  // 2. Update Stock Status
-  if (this.isModified('stock')) {
-    if (this.stock === 0) {
-      this.stockStatus = 'Out of Stock';
+  // 2. Sanitize Part Number
+  if (this.isModified("partNumber")) {
+    this.sanitizedPartNumber = this.partNumber
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .toLowerCase();
+  }
+
+  // 3. Update Stock Status
+  if (this.isModified("stock")) {
+    if (this.stock <= 0) {
+      this.stockStatus = "Out of Stock";
     } else if (this.stock <= this.lowStockThreshold) {
-      this.stockStatus = 'Low Stock';
+      this.stockStatus = "Low Stock";
     } else {
-      this.stockStatus = 'In Stock';
+      this.stockStatus = "In Stock";
     }
   }
 
-  // 🔥 NEW LOGIC: Flash Sale Validation
-  // ఫ్లాష్ సేల్ ధర అసలు ధర కంటే తక్కువ ఉందా లేదా అని చెక్ చేస్తుంది
-  if (this.flashSale && this.flashSale.isActive && this.flashSale.salePrice >= this.price) {
-     // ఒకవేళ సేల్ ప్రైస్ ఎక్కువ ఉంటే, సేల్ ని ఆపేస్తాం (Safety Check)
-     this.flashSale.isActive = false; 
+  // 4. Flash Sale Validation
+  if (this.flashSale && this.flashSale.isActive) {
+    // Discount Price ఉంటే దాన్ని, లేకపోతే మెయిన్ Price ని బేస్ గా తీసుకోవాలి
+    const basePrice = this.discountPrice || this.price;
+
+    // Sale Price అసలు ధర కంటే ఎక్కువ ఉంటే, సేల్ ని డీయాక్టివేట్ చేయాలి
+    if (this.flashSale.salePrice >= basePrice) {
+      this.flashSale.isActive = false;
+    }
+
+    // సేల్ టైమ్ అయిపోయిందా అని చెక్ చేయాలి
+    const now = new Date();
+    if (this.flashSale.endTime && now > this.flashSale.endTime) {
+      this.flashSale.isActive = false;
+    }
   }
 
   next();
 });
 
 // --- INDEXES ---
-productSchema.index({ name: 'text', description: 'text', sanitizedPartNumber: 'text' });
+productSchema.index({
+  name: "text",
+  description: "text",
+  sanitizedPartNumber: "text",
+  tags: "text",
+});
 productSchema.index({ category: 1, isActive: 1, isDeleted: 1 });
-productSchema.index({ "compatibleModels.modelName": 1, "compatibleModels.yearFrom": 1 });
-// 🔥 NEW INDEX: For fast fetching of Flash Sales & Restock Alerts
+productSchema.index({
+  "compatibleModels.modelName": 1,
+  "compatibleModels.yearFrom": 1,
+});
 productSchema.index({ "flashSale.isActive": 1, "flashSale.endTime": 1 });
-productSchema.index({ "inventoryAnalytics.reorderLevel": 1 });
+productSchema.index({ slug: 1 }); // For fast lookup by URL
 
 // --- VIRTUALS ---
-productSchema.virtual('finalPrice').get(function () {
-  // Logic: ఫ్లాష్ సేల్ యాక్టివ్‌గా ఉంటే మరియు టైమ్ అయిపోకపోతే 'salePrice' తీసుకో
+productSchema.virtual("finalPrice").get(function () {
   if (this.flashSale?.isActive && this.flashSale?.salePrice) {
     const now = new Date();
     if (now >= this.flashSale.startTime && now <= this.flashSale.endTime) {
       return this.flashSale.salePrice;
     }
   }
-  // లేదంటే సాధారణ డిస్కౌంట్ లేదా అసలు ధర
   return this.discountPrice || this.price;
 });
 
-productSchema.set('toJSON', { virtuals: true });
-productSchema.set('toObject', { virtuals: true });
+productSchema.set("toJSON", { virtuals: true });
+productSchema.set("toObject", { virtuals: true });
 
 // --- QUERY MIDDLEWARE ---
 productSchema.pre(/^find/, function (next) {
@@ -434,6 +474,6 @@ productSchema.pre(/^find/, function (next) {
   next();
 });
 
-const Product = mongoose.model('Product', productSchema);
+const Product = mongoose.model("Product", productSchema);
 
 export default Product;

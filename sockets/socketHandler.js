@@ -539,6 +539,7 @@ export const initializeSocket = (server) => {
     pingInterval: 25000,
   });
 
+  // --- AI LOGIC ---
   const generateAIReply = async (userMessage) => {
     try {
       const chatCompletion = await groq.chat.completions.create({
@@ -555,20 +556,11 @@ You are chatting with close friends. Your goal is to be natural, funny, and teas
 3. Don't repeat the same word twice in a sentence.
 
 ***CORRECT EXAMPLES (LEARN THIS STYLE)***:
-
 User: Hi
 Ashok: Emi ra babu, intha late ga vachav? Nuvvu vache varaku maku ikkada time pass avvatledu.
 
 User: Em chestunnav?
 Ashok: Em chestam ra? Kali ga kurchuni ee dunnapothula group ni chustunna. Nuvvu em peekuthunnav?
-
-User: Naku bore kodutundi
-Ashok: Aithe velli godaki thala kottuko, sound vastadi, time pass avtadi. Maku enduku cheptunnav?
-
-User: I am busy
-Ashok: Abba saami, nuvvu pedda Ambani vi mari. Busy anta busy. Mundu reply sarigga ivvu.
-
-***END OF EXAMPLES***
 
 Now reply to the user in this exact style. Use slang words like: "Endi katha", "Yaada unnav", "Babu", "Saami", "Tubelight".
           `,
@@ -579,9 +571,9 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
           },
         ],
         model: "llama-3.3-70b-versatile",
-        temperature: 0.6, // Taggincham: Ippudu mari ekkuva overaction cheyadu, clear ga vastadi.
+        temperature: 0.6,
         max_tokens: 150,
-        presence_penalty: 0.4, // Kotha words vade la chestundi, repetition taggistundi.
+        presence_penalty: 0.4,
       });
 
       return chatCompletion.choices[0].message.content;
@@ -594,16 +586,33 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
   // ================== AUTH MIDDLEWARE ==================
   io.use(async (socket, next) => {
     try {
-      const token =
-        socket.handshake.auth.token ||
-        socket.handshake.headers.authorization?.split(" ")[1];
+      let token = null;
 
-      // GUEST HANDLING
+      if (socket.handshake.auth && socket.handshake.auth.token) {
+        token = socket.handshake.auth.token;
+      } else if (
+        socket.handshake.headers &&
+        socket.handshake.headers.authorization
+      ) {
+        const authHeader = socket.handshake.headers.authorization;
+        if (authHeader.startsWith("Bearer ")) {
+          token = authHeader.split(" ")[1];
+        }
+      } else if (socket.request.headers.cookie) {
+        const cookieHeader = socket.request.headers.cookie;
+        const cookies = Object.fromEntries(
+          cookieHeader.split("; ").map((c) => {
+            const [key, ...v] = c.split("=");
+            return [key.trim(), v.join("=")];
+          }),
+        );
+        if (cookies.accessToken) {
+          token = cookies.accessToken;
+        }
+      }
+
       if (!token) {
-        socket.userType = "guest";
-        socket.userId = `guest_${socket.id}`;
-        socket.userRole = "visitor";
-        return next();
+        return next(new Error("Authentication error: No token provided."));
       }
 
       const decoded = verifyAccessToken(token);
@@ -611,77 +620,101 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
       socket.userRole = decoded.role;
 
       if (decoded.role === "admin" || decoded.role === "superadmin") {
-        const admin = await Admin.findById(decoded.id);
-        if (!admin || !admin.isActive) return next(new Error("Admin inactive"));
+        const admin = await Admin.findById(decoded.id).select("-password");
+        if (!admin) return next(new Error("Admin not found"));
+        socket.user = admin;
         socket.userType = "admin";
       } else {
-        const user = await User.findById(decoded.id);
-        if (!user || !user.isActive) return next(new Error("User inactive"));
+        const user = await User.findById(decoded.id).select("-password");
+        if (!user) return next(new Error("User not found"));
+        if (!user.isActive) return next(new Error("Account deactivated"));
+        socket.user = user;
         socket.userType = "customer";
       }
 
+      console.log(
+        `⚡ Socket Connected: ${socket.id} (Role: ${socket.userType})`,
+      );
       next();
     } catch (err) {
-      console.log("⚠️ Token Invalid/Expired, treating as Guest.");
-      socket.userType = "guest";
-      socket.userId = `guest_${socket.id}`;
-      socket.userRole = "visitor";
-      next();
+      console.log(`⚠️ Socket Auth Failed (${socket.id}):`, err.message);
+      return next(new Error("Authentication error: Invalid token"));
     }
   });
 
-  // ================== CONNECTION ==================
+  // ================== CONNECTION LOGIC (THE FIX) ==================
   io.on("connection", (socket) => {
-    console.log(`✅ Connected ${socket.id} (Role: ${socket.userType})`);
+    console.log(`\n🔌 NEW CONNECTION: SocketID: ${socket.id}`);
+    console.log(`👤 UserID: ${socket.userId} | Role: ${socket.userType}`);
 
-    // 🔥🔥 FIX: ప్రతి ఒక్కరినీ (Guest & Customer) వారి పర్సనల్ రూమ్ లో జాయిన్ చేయాలి
-    // ఇది లేకపోతే అడ్మిన్ పంపిన మెసేజ్ గెస్ట్ కి చేరదు!
+    // 1. Join Personal Room
     socket.join(`user:${socket.userId}`);
-    console.log(`🔌 ${socket.userType} joined room: user:${socket.userId}`);
 
-    // ---------- ADMIN SETUP ----------
+    // 🔥🔥 FIX START: Universal Tracking (Admin & Customer) 🔥🔥
+    // ఇంతకుముందు ఇది else if (customer) లోపల ఉండేది. ఇప్పుడు బయట పెట్టాం.
+    if (!onlineUsers.has(socket.userId)) {
+      onlineUsers.set(socket.userId, {
+        sockets: new Set(),
+        role: socket.userRole,
+        userType: socket.userType,
+      });
+    }
+    onlineUsers.get(socket.userId).sockets.add(socket.id);
+
+    // మొదటి కనెక్షన్ అయితే అందరికీ ఆన్‌లైన్ అని చెప్పాలి
+    if (onlineUsers.get(socket.userId).sockets.size === 1) {
+      io.emit("user_status_update", {
+        userId: socket.userId,
+        isOnline: true,
+        userType: socket.userType,
+        timestamp: new Date(),
+      });
+      console.log(
+        `🟢 User ${socket.userId} (${socket.userType}) is now ONLINE`,
+      );
+    }
+    // 🔥🔥 FIX END 🔥🔥
+
+    // ---------- ROLE SPECIFIC SETUP ----------
     if (socket.userType === "admin") {
       adminSockets.add(socket.id);
       socket.join("admins");
-      socket.join(socket.userId);
-      socket.join("admin_room"); // LIVE TRACKING ROOM
-      console.log("🛡️ Admin joined tracking room");
-
-      console.log(
-        `🛡️ Admin (${socket.userId}) joined tracking room: admin_room`,
-      );
-    }
-
-    // ---------- CUSTOMER SETUP ----------
-    else if (socket.userType === "customer") {
+      socket.join("admin_room"); // Live tracking room
+      console.log("🛡️ Admin joined tracking rooms");
+    } else if (socket.userType === "customer") {
       userSockets.set(socket.userId, socket.id);
-      socket.join(`user:${socket.userId}`);
-
-      if (!onlineUsers.has(socket.userId)) {
-        onlineUsers.set(socket.userId, {
-          sockets: new Set(),
-          role: socket.userRole,
-        });
-      }
-      onlineUsers.get(socket.userId).sockets.add(socket.id);
-
-      if (onlineUsers.get(socket.userId).sockets.size === 1) {
-        io.emit("user_status_update", {
-          userId: socket.userId,
-          isOnline: true,
-          timestamp: new Date(),
-        });
-      }
+      console.log("👤 Customer joined personal room");
     }
-    // ========================================================
-    // 🔥🔥 NEW FEATURE: LIVE ACTIVITY TRACKING (SPY MODE) 🔥🔥
-    // ========================================================
+
+    // ================== STATUS CHECK EVENT ==================
+    socket.on("check_online_status", ({ userId }) => {
+      console.log(`❓ Request: Is User ${userId} online?`);
+
+      const isOnline =
+        onlineUsers.has(userId) && onlineUsers.get(userId).sockets.size > 0;
+
+      console.log(`👉 Answer: ${isOnline}`);
+
+      socket.emit("is_user_online_response", {
+        userId: userId,
+        isOnline: isOnline,
+      });
+    });
+
+    socket.on("get_online_users", () => {
+      if (socket.userType === "admin") {
+        const onlineUserIds = Array.from(onlineUsers.keys());
+        socket.emit("online_users_list", onlineUserIds);
+      }
+    });
+
+    // ================== TRACKING (SPY MODE) ==================
     socket.on("track_activity", async (data) => {
       try {
         const activityData = {
           userId:
             data.userId ||
-            (socket.userType === "customer" ? socket.userId : "Guest"), // UI కోసం Guest అని ఉంచొచ్చు
+            (socket.userType === "customer" ? socket.userId : "Guest"),
           userName: data.userName || "Guest",
           action: data.action,
           details: data.details || {},
@@ -690,15 +723,10 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
           timestamp: new Date(),
         };
 
-        // 1. Send to Admin UI immediately
         io.to("admin_room").emit("new_live_activity", activityData);
 
-        // 2. Save significant actions to DB
         if (data.saveToDb) {
-          // 🔥 FIX START: "Guest" అని వస్తే DB కి null పంపాలి
           let dbUserId = null;
-
-          // యూజర్ ఐడి ఉండి, అది "Guest" కాకపోతే, మరియు అది సరైన ObjectId (24 chars) అయితేనే తీసుకుంటాం
           if (
             activityData.userId &&
             activityData.userId !== "Guest" &&
@@ -707,10 +735,9 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
           ) {
             dbUserId = activityData.userId;
           }
-          // 🔥 FIX END
 
           await ActivityLog.create({
-            user: dbUserId, // ఇక్కడ "Guest" వెళ్లకుండా null వెళ్తుంది
+            user: dbUserId,
             action: activityData.action,
             ipAddress: socket.handshake.address,
             details: activityData.details,
@@ -721,18 +748,16 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
         console.error("Tracking Error:", error.message);
       }
     });
-    // 2. ADMIN PROACTIVE CHAT
+
+    // ================== CHAT LOGIC ==================
     socket.on("admin_send_message_trigger", (data) => {
-      console.log(`📢 Admin sending message to user:${data.targetUserId}`);
       io.to(`user:${data.targetUserId}`).emit("force_open_chat", {
         message: data.message,
         adminId: socket.userId,
       });
     });
 
-    // 3. CLIENT REPLY TO ADMIN
     socket.on("client_send_reply", (data) => {
-      console.log(`📩 Reply from User (${data.userName}): ${data.message}`);
       io.to("admin_room").emit("admin_receive_reply", {
         userId: data.userId,
         userName: data.userName,
@@ -741,32 +766,7 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
       });
     });
 
-    // ================== STANDARD EVENTS ==================
-    socket.emit("connected", {
-      userId: socket.userId,
-      role: socket.userRole || "guest",
-      message: "Connected successfully",
-    });
-
-    socket.on("get_online_users", () => {
-      if (socket.userType === "admin") {
-        const onlineUserIds = Array.from(onlineUsers.keys());
-        socket.emit("online_users_list", onlineUserIds);
-      }
-    });
-
-    socket.on("check_online_status", ({ userId }) => {
-      const isOnline =
-        onlineUsers.has(userId) && onlineUsers.get(userId).sockets.size > 0;
-      socket.emit("is_user_online_response", {
-        userId: userId,
-        isOnline: isOnline,
-      });
-    });
-
-    // ================== CHAT ROOMS ==================
     socket.on("join_room", async (roomId) => {
-      // FIX: Handle "admin" room specifically for admin panel connection
       if (roomId === "admin" && socket.userType === "admin") {
         socket.join("admin_room");
         return;
@@ -777,6 +777,7 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
 
       if (!roomToJoin.includes("_")) return;
 
+      // Mark delivered
       const undeliveredMessages = await Message.find({
         roomId: roomToJoin,
         receiverId: socket.userId,
@@ -797,10 +798,8 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
       }
     });
 
-    // ================== SEND MESSAGE (FIXED AI LOGIC) ==================
     socket.on("send_message", async (data) => {
       try {
-        // 1. SAVE USER MESSAGE
         const message = new Message({
           senderId: socket.userId,
           senderModel: socket.userType === "admin" ? "Admin" : "User",
@@ -824,27 +823,15 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
           messageId: message._id,
         });
 
-        // 2. AI AUTO REPLY LOGIC (Only if receiver is Admin)
+        // AI Logic
         if (data.receiverModel === "Admin" && data.messageType === "text") {
           const adminId = data.receiverId;
-
           if (!adminId) return;
-
-          // 🔥 Fetch Admin Settings to check the Button State
           const adminData = await Admin.findById(adminId);
 
-          // 🔥🔥 FIX IS HERE: Only reply if the button is explicitly ENABLED
-          const isAutoReplyEnabled = adminData?.isAutoReplyEnabled;
-
-          if (isAutoReplyEnabled) {
-            console.log(
-              "🤖 ASHOK AI: Auto-reply is ON. Generating response...",
-            );
-
+          if (adminData?.isAutoReplyEnabled) {
             try {
               const aiResponseText = await generateAIReply(data.text);
-              console.log("🤖 ASHOK AI: Reply:", aiResponseText);
-
               const aiMessage = new Message({
                 senderId: adminId,
                 senderModel: "Admin",
@@ -863,16 +850,12 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
                 "name email profilePicture",
               );
 
-              // Small delay to feel natural
               setTimeout(() => {
                 io.to(data.roomId).emit("receive_message", savedMessage);
-                console.log("📨 ASHOK AI: Reply sent.");
               }, 2000);
             } catch (aiError) {
               console.error("❌ AI Error:", aiError.message);
             }
-          } else {
-            console.log("🔇 ASHOK AI: Auto-reply is OFF. Ignoring message.");
           }
         }
       } catch (err) {
@@ -881,19 +864,8 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
       }
     });
 
-    // ================== TYPING ==================
     socket.on("typing", (roomId) => {
       const room = typeof roomId === "object" ? roomId.roomId : roomId;
-      const key = `${room}_${socket.userId}`;
-      if (typingUsers.has(key)) clearTimeout(typingUsers.get(key));
-      const timeout = setTimeout(() => {
-        typingUsers.delete(key);
-        socket.to(room).emit("hide_typing", {
-          userId: socket.userId,
-          roomId: room,
-        });
-      }, 3000);
-      typingUsers.set(key, timeout);
       socket.to(room).emit("display_typing", {
         userId: socket.userId,
         roomId: room,
@@ -902,40 +874,10 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
 
     socket.on("stop_typing", (roomId) => {
       const room = typeof roomId === "object" ? roomId.roomId : roomId;
-      const key = `${room}_${socket.userId}`;
-      if (typingUsers.has(key)) {
-        clearTimeout(typingUsers.get(key));
-        typingUsers.delete(key);
-      }
       socket.to(room).emit("hide_typing", {
         userId: socket.userId,
         roomId: room,
       });
-    });
-
-    // ================== EDIT/DELETE/READ ==================
-    socket.on("edit_message", async ({ roomId, messageId, newText }) => {
-      try {
-        const updatedMessage = await Message.findByIdAndUpdate(
-          messageId,
-          { text: newText, isEdited: true },
-          { new: true },
-        ).populate("senderId", "name email profilePicture");
-        if (updatedMessage) {
-          io.to(roomId).emit("message_updated", updatedMessage);
-        }
-      } catch (error) {
-        console.error("Edit Error:", error);
-      }
-    });
-
-    socket.on("delete_message", async ({ roomId, messageId }) => {
-      try {
-        await Message.findByIdAndDelete(messageId);
-        io.to(roomId).emit("message_deleted", { messageId, roomId });
-      } catch (error) {
-        console.error("Delete Error:", error);
-      }
     });
 
     socket.on("mark_read", async ({ roomId, userId }) => {
@@ -950,34 +892,31 @@ Now reply to the user in this exact style. Use slang words like: "Endi katha", "
       }
     });
 
-    // ================== DISCONNECT ==================
+    // ================== DISCONNECT (THE FIX) ==================
     socket.on("disconnect", () => {
       console.log(`❌ Disconnected ${socket.id} (${socket.userId})`);
 
-      if (socket.userType === "customer") {
-        const userEntry = onlineUsers.get(socket.userId);
-        if (userEntry && userEntry.sockets) {
-          userEntry.sockets.delete(socket.id);
-          if (userEntry.sockets.size === 0) {
-            onlineUsers.delete(socket.userId);
-            io.emit("user_status_update", {
-              userId: socket.userId,
-              isOnline: false,
-              timestamp: new Date(),
-            });
-          }
+      const userEntry = onlineUsers.get(socket.userId);
+      if (userEntry && userEntry.sockets) {
+        userEntry.sockets.delete(socket.id);
+
+        // అన్ని ట్యాబ్స్ క్లోజ్ చేస్తేనే ఆఫ్‌లైన్
+        if (userEntry.sockets.size === 0) {
+          onlineUsers.delete(socket.userId);
+
+          // 🔥 అందరికీ అప్‌డేట్ పంపుతున్నాం (Both Admin & Customer can see offline status)
+          io.emit("user_status_update", {
+            userId: socket.userId,
+            isOnline: false,
+            userType: socket.userType,
+            timestamp: new Date(),
+          });
+          console.log(`🔴 User ${socket.userId} is now OFFLINE`);
         }
-        userSockets.delete(socket.userId);
-      } else if (socket.userType === "admin") {
-        adminSockets.delete(socket.id);
       }
 
-      for (const [key, t] of typingUsers.entries()) {
-        if (key.includes(socket.userId)) {
-          clearTimeout(t);
-          typingUsers.delete(key);
-        }
-      }
+      if (socket.userType === "admin") adminSockets.delete(socket.id);
+      if (socket.userType === "customer") userSockets.delete(socket.userId);
     });
   });
 

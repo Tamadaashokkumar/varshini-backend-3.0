@@ -3,15 +3,6 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-console.log("----------------------------------------");
-console.log("🔍 CHECKING EMAIL CREDENTIALS:");
-console.log("User:", process.env.EMAIL_USER);
-console.log(
-  "Pass Length:",
-  process.env.EMAIL_PASS ? process.env.EMAIL_PASS.length : "Missing",
-);
-console.log("----------------------------------------");
-
 /**
  * 1. Configure Transporter
  * Gmail SMTP సెట్టింగ్స్.
@@ -47,7 +38,6 @@ const sendEmail = async (options) => {
     return true;
   } catch (error) {
     console.error("❌ Email sending failed:", error);
-    // ఎర్రర్ ని పైకి విసిరితే (Throw), కంట్రోలర్ దాన్ని పట్టుకోగలదు
     throw new Error(error.message);
   }
 };

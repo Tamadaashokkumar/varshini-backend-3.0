@@ -153,12 +153,16 @@ import {
   getFeaturedProducts,
   getRelatedProducts,
   getSmartBundles,
+  getProductBySlug,
+  fixProductData,
 } from "../controllers/productController.js";
 import reviewRoutes from "./reviewRoutes.js";
 
 const router = express.Router();
 
 // --- PUBLIC ROUTES ---
+
+router.get("/fix-data", fixProductData);
 
 /**
  * @route   GET /api/products/featured
@@ -180,6 +184,13 @@ router.get("/category/:category", getProductsByCategory);
  * @access  Public
  */
 router.get("/", getAllProducts);
+
+/**
+ * @route   GET /api/products/slug/:slug
+ * @desc    Get product by SEO Slug
+ * @access  Public
+ */
+router.get("/slug/:slug", getProductBySlug);
 
 /**
  * @route   GET /api/products/:id

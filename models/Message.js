@@ -4,6 +4,7 @@ const messageSchema = new mongoose.Schema(
   {
     senderId: {
       type: mongoose.Schema.Types.ObjectId,
+      // type: String,
       required: true,
       refPath: "senderModel", // Dynamic reference (User or Admin)
     },
@@ -14,9 +15,11 @@ const messageSchema = new mongoose.Schema(
     },
     receiverId: {
       type: mongoose.Schema.Types.ObjectId,
+      // type: String,
       required: true,
       refPath: "receiverModel", // Dynamic reference
     },
+
     receiverModel: {
       type: String,
       required: true,

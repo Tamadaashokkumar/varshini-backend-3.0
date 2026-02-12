@@ -14,7 +14,7 @@ dotenv.config();
  */
 const requiredEnvVars = [
   "MONGO_URI",
-  "JWT_ACCESS_SECRET",
+  "JWT_SECRET",
   "JWT_REFRESH_SECRET",
   "CLOUDINARY_CLOUD_NAME",
   "CLOUDINARY_API_KEY",

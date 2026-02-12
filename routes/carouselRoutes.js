@@ -6,17 +6,19 @@ import {
   deleteCarousel,
   getAllAdminCarousels,
 } from "../controllers/carouselController.js";
-import { protect, adminOnly } from "../middlewares/auth.js"; // మీ Auth Middleware ఇక్కడ వాడండి
+import { protect, adminOnly } from "../middlewares/auth.js";
+
+// 🔥 మీ Cloudinary Config నుండి upload ని ఇంపోర్ట్ చేయండి
+import { upload } from "../config/cloudinary.js";
 
 const router = express.Router();
 
-// Public Route (కస్టమర్ కోసం)
 router.get("/", getCarousels);
-
-// Admin Routes (అడ్మిన్ ప్యానెల్ కోసం)
 router.get("/admin/all", protect, adminOnly, getAllAdminCarousels);
-router.post("/", protect, adminOnly, addCarousel);
-router.put("/:id", protect, adminOnly, updateCarousel);
+
+// 🔥 upload.single("image") అని పెట్టండి. Frontend లో FormData key "image" ఉండాలి.
+router.post("/", protect, adminOnly, upload.single("image"), addCarousel);
+router.put("/:id", protect, adminOnly, upload.single("image"), updateCarousel);
 router.delete("/:id", protect, adminOnly, deleteCarousel);
 
 export default router;

@@ -142,6 +142,7 @@ app.get("/health", (req, res) => {
  * API Routes
  */
 app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/users", authRoutes);
 app.use("/api/admin/auth", authLimiter, adminAuthRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/products", productRoutes);

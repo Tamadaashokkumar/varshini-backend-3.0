@@ -33,11 +33,11 @@ export const errorHandler = (err, req, res, next) => {
   error.message = err.message;
 
   // Log error for debugging
-  console.error('Error:', err);
+  console.error("Error:", err);
 
   // Mongoose bad ObjectId
-  if (err.name === 'CastError') {
-    const message = 'Resource not found';
+  if (err.name === "CastError") {
+    const message = "Resource not found";
     error = new AppError(message, 404);
   }
 
@@ -49,28 +49,28 @@ export const errorHandler = (err, req, res, next) => {
   }
 
   // Mongoose validation error
-  if (err.name === 'ValidationError') {
+  if (err.name === "ValidationError") {
     const message = Object.values(err.errors)
       .map((val) => val.message)
-      .join(', ');
+      .join(", ");
     error = new AppError(message, 400);
   }
 
   // JWT errors
-  if (err.name === 'JsonWebTokenError') {
-    const message = 'Invalid token. Please login again.';
+  if (err.name === "JsonWebTokenError") {
+    const message = "Invalid token. Please login again.";
     error = new AppError(message, 401);
   }
 
-  if (err.name === 'TokenExpiredError') {
-    const message = 'Token expired. Please login again.';
+  if (err.name === "TokenExpiredError") {
+    const message = "Token expired. Please login again.";
     error = new AppError(message, 401);
   }
 
   res.status(error.statusCode || 500).json({
     success: false,
-    error: error.message || 'Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    error: error.message || "Server Error",
+    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 };
 
