@@ -12,23 +12,13 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const getCookieOptions = (type) => {
   const isProduction = process.env.NODE_ENV === "production";
 
-  // const options = {
-  //   httpOnly: true, // JS cannot read this (Security)
-  //   secure: isProduction, // HTTPS only in production
-  //   sameSite: isProduction ? "strict" : "lax", // CSRF protection
-  // };
-
   const options = {
-    httpOnly: true,
-
-    // 👇 Localhost లో ఇది FALSE ఉండాలి. లేకపోతే కుకీ సేవ్ అవ్వదు.
-    secure: false,
-
-    // 👇 Localhost లో "lax" బెటర్.
-    sameSite: "lax",
-
-    path: "/",
+    httpOnly: true, // JS cannot read this (Security)
+    secure: isProduction, // HTTPS only in production
+    sameSite: isProduction ? "strict" : "lax",
+    path: "/", // CSRF protection
   };
+
   if (type === "access") {
     // Access Token: Short Lived (e.g., 15 Mins)
     return { ...options, maxAge: 15 * 60 * 1000 };
