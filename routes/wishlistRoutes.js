@@ -1,11 +1,12 @@
-import express from 'express';
+import express from "express";
 import {
   toggleWishlistItem,
   getWishlist,
   checkWishlistItem,
   clearWishlist,
-} from '../controllers/wishlistController.js'; // .js extension important
-import { protect } from '../middlewares/auth.js';
+  checkBatchStatus,
+} from "../controllers/wishlistController.js"; // .js extension important
+import { protect } from "../middlewares/auth.js";
 
 const router = express.Router();
 
@@ -13,15 +14,17 @@ const router = express.Router();
 router.use(protect);
 
 // Toggle product in wishlist (add/remove)
-router.post('/toggle', toggleWishlistItem);
+router.post("/toggle", toggleWishlistItem);
 
 // Get user's wishlist
-router.get('/', getWishlist);
+router.get("/", getWishlist);
 
 // Check if specific product is in wishlist
-router.get('/check/:productId', checkWishlistItem);
+router.get("/check/:productId", checkWishlistItem);
+
+router.post("/check-status-batch", checkBatchStatus);
 
 // Clear entire wishlist
-router.delete('/clear', clearWishlist);
+router.delete("/clear", clearWishlist);
 
 export default router;

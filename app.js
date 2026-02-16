@@ -22,6 +22,7 @@ import chatRoutes from "./routes/chatRoutes.js";
 import carouselRoutes from "./routes/carouselRoutes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
+import fastivalBanner from "./DataInsertBulk/festivalBanner.js";
 //import { fixStockStatus } from "./seedProducts.js";
 /**
  * Initialize Express Application

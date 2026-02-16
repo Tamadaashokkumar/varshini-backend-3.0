@@ -410,6 +410,6 @@ router.route("/garage/:vehicleId").delete(protect, removeVehicleFromGarage);
 // 3. Sync Local Garage (Call this immediately after Login on Frontend)
 router.post("/garage/sync", protect, syncGarage);
 router.post("/garage/decode-vin", decodeVinHandler);
-router.get("/check-session", checkSession);
+router.get("/check-session", protect, checkSession);
 
 export default router;

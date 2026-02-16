@@ -14,6 +14,7 @@ import {
   logoutAllSessions,
   getAllCustomers,
   toggleAutoReply,
+  checkAdminSession,
 } from "../controllers/adminAuthController.js";
 
 import { getChatUsersForAdmin } from "../controllers/chatController.js";
@@ -46,6 +47,8 @@ router.post(
   validate,
   refreshAdminToken,
 );
+
+router.get("/auth/check-session", checkAdminSession);
 
 /**
  * @route   GET /api/admin/auth/profile

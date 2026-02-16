@@ -3,8 +3,8 @@ import mongoose from "mongoose";
 const messageSchema = new mongoose.Schema(
   {
     senderId: {
-      type: mongoose.Schema.Types.ObjectId,
-      // type: String,
+      // type: mongoose.Schema.Types.ObjectId,
+      type: String,
       required: true,
       refPath: "senderModel", // Dynamic reference (User or Admin)
     },
@@ -14,8 +14,8 @@ const messageSchema = new mongoose.Schema(
       enum: ["User", "Admin"],
     },
     receiverId: {
-      type: mongoose.Schema.Types.ObjectId,
-      // type: String,
+      // type: mongoose.Schema.Types.ObjectId,
+      type: String,
       required: true,
       refPath: "receiverModel", // Dynamic reference
     },
