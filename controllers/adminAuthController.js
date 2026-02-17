@@ -10,10 +10,19 @@ const getCookieOptions = (type) => {
   const isProduction = process.env.NODE_ENV === "production";
 
   const options = {
-    httpOnly: true, // Security: JS cannot read this
-    secure: isProduction, // HTTPS only in production
-    sameSite: isProduction ? "strict" : "lax", // CSRF protection
+    // httpOnly: true, // Security: JS cannot read this
+    // secure: isProduction, // HTTPS only in production
+    // sameSite: isProduction ? "strict" : "lax", // CSRF protection
+    // path: "/",
+
+     httpOnly: true,
     path: "/",
+
+    // 👇 Render (Backend) & Vercel (Frontend) వేరు కాబట్టి ఇది తప్పనిసరి
+    secure: true,
+
+    // 👇 Strict ఉంటే పనిచేయదు. 'none' ఉంటేనే కుకీ వెళ్తుంది.
+    sameSite: "none",
   };
 
   if (type === "access") {
