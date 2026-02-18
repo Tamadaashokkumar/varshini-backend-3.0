@@ -412,4 +412,17 @@ router.post("/garage/sync", protect, syncGarage);
 router.post("/garage/decode-vin", decodeVinHandler);
 router.get("/check-session", protect, checkSession);
 
+// routes/auth.js
+
+// ఈ రౌట్ ద్వారా ఫ్రంటెండ్ టోకెన్ ని పొందవచ్చు
+router.get("/get-socket-token", (req, res) => {
+  // కుకీ ఉందో లేదో చెక్ చేయడం
+  const token = req.cookies.access_token;
+  if (!token) {
+    return res.status(401).json({ message: "No active session" });
+  }
+  // టోకెన్ ని JSON గా పంపడం
+  res.json({ token });
+});
+
 export default router;
