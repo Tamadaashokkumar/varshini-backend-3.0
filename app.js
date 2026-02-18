@@ -73,7 +73,12 @@ app.use(
 /**
  * Security Headers with Helmet
  */
-app.use(helmet());
+// app.use(helmet());
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  credentials: true
+}));
 
 /**
  * Body Parser
