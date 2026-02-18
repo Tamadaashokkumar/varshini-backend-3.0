@@ -251,4 +251,15 @@ router.get("/chat-users", protect, adminOnly, getChatUsersForAdmin);
  */
 router.put("/toggle-ai", protect, adminOnly, toggleAutoReply);
 
+// Admin Auth Routes
+router.get("/get-socket-token", (req, res) => {
+  // అడ్మిన్ కుకీ పేరు వేరేలా ఉంటే అది ఇవ్వండి (ఉదా: admin_access_token)
+  const token = req.cookies.admin_access_token || req.cookies.access_token;
+
+  if (!token) {
+    return res.status(200).json({ token: null });
+  }
+  res.json({ token });
+});
+
 export default router;
