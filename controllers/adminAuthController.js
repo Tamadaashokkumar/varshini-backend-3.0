@@ -15,7 +15,7 @@ const getCookieOptions = (type) => {
     // sameSite: isProduction ? "strict" : "lax", // CSRF protection
     // path: "/",
 
-     httpOnly: true,
+    httpOnly: true,
     path: "/",
 
     // 👇 Render (Backend) & Vercel (Frontend) వేరు కాబట్టి ఇది తప్పనిసరి
