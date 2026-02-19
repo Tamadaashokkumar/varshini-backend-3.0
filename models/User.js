@@ -101,6 +101,8 @@ const userSchema = new mongoose.Schema(
     garage: [vehicleSchema],
     passwordResetToken: String,
     passwordResetExpires: Date,
+    emailVerificationToken: String,
+    emailVerificationExpires: Date,
   },
   {
     timestamps: true,
@@ -176,6 +178,24 @@ userSchema.methods.createPasswordResetToken = function () {
 
   // 4. ఇమెయిల్ లో పంపడానికి "Raw Token" ని రిటర్న్ చేస్తాం
   return resetToken;
+};
+
+// 🔥 NEW: ఈమెయిల్ వెరిఫికేషన్ టోకెన్ జనరేట్ చేసే మెథడ్
+userSchema.methods.createEmailVerificationToken = function () {
+  // 1. రండమ్ గా 32 అక్షరాల స్ట్రింగ్ ని క్రియేట్ చేస్తాం
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+
+  // 2. దాన్ని హ్యాష్ చేసి డేటాబేస్ లో సేవ్ చేస్తాం
+  this.emailVerificationToken = crypto
+    .createHash("sha256")
+    .update(verificationToken)
+    .digest("hex");
+
+  // 3. 24 గంటలు (24 hours) వాలిడిటీ ఇస్తున్నాం
+  this.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000;
+
+  // 4. ఇమెయిల్ లింక్‌లో పంపడానికి రా టోకెన్ రిటర్న్ చేస్తాం
+  return verificationToken;
 };
 
 const User = mongoose.model("User", userSchema);

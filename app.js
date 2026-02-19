@@ -13,7 +13,7 @@ import adminAuthRoutes from "./routes/adminAuthRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
-//import paymentRoutes from './routes/paymentRoutes.js';
+import paymentRoutes from "./routes/paymentRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import wishlistRoutes from "./routes/wishlistRoutes.js"; // <--- 3. IMPORT THIS
 import notificationRoutes from "./routes/notificationRoutes.js";
@@ -75,10 +75,12 @@ app.use(
  */
 // app.use(helmet());
 
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  credentials: true
-}));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    credentials: true,
+  }),
+);
 
 /**
  * Body Parser
@@ -154,7 +156,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
-//app.use('/api/payments', paymentRoutes);
+app.use("/api/payments", paymentRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/notifications", notificationRoutes);

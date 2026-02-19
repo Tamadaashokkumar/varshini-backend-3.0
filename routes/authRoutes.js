@@ -219,6 +219,8 @@ import {
   removeVehicleFromGarage,
   syncGarage,
   checkSession,
+  verifyEmail,
+  resendVerificationEmail,
 } from "../controllers/authController.js";
 import { decodeVinHandler } from "../controllers/vinController.js";
 
@@ -424,5 +426,8 @@ router.get("/get-socket-token", (req, res) => {
   // టోకెన్ ని JSON గా పంపడం
   res.json({ token });
 });
+
+router.get("/verify-email/:token", verifyEmail);
+router.post("/resend-verification", resendVerificationEmail);
 
 export default router;

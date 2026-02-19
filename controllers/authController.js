@@ -98,6 +98,28 @@ const sendTokenResponse = async (user, statusCode, res, message) => {
  * @desc    User Registration
  * @route   POST /api/auth/register
  */
+// export const registerUser = asyncHandler(async (req, res) => {
+//   const { name, email, password, phone } = req.body;
+
+//   const existingUser = await User.findOne({ email });
+//   if (existingUser) {
+//     throw new AppError("User with this email already exists", 400);
+//   }
+
+//   const user = await User.create({
+//     name,
+//     email,
+//     password,
+//     phone,
+//   });
+
+//   await sendTokenResponse(user, 201, res, "Registration successful");
+// });
+
+/**
+ * @desc    User Registration with Email Verification
+ * @route   POST /api/auth/register
+ */
 export const registerUser = asyncHandler(async (req, res) => {
   const { name, email, password, phone } = req.body;
 
@@ -106,14 +128,117 @@ export const registerUser = asyncHandler(async (req, res) => {
     throw new AppError("User with this email already exists", 400);
   }
 
+  // 1. Create User
   const user = await User.create({
     name,
     email,
     password,
     phone,
+    isEmailVerified: false, // Default ga false
   });
 
-  await sendTokenResponse(user, 201, res, "Registration successful");
+  // 2. Generate Verification Token
+  const verificationToken = user.createEmailVerificationToken();
+  await user.save({ validateBeforeSave: false });
+
+  // 3. Send Verification Email
+  const verifyURL = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+  const message = `Welcome to Varshini Hyundai Spares, ${user.name}!\n\nPlease verify your email address by clicking on the link below:\n\n${verifyURL}\n\nThis link is valid for 24 hours.`;
+
+  try {
+    await sendEmail({
+      email: user.email,
+      subject: "Verify Your Email Address - Varshini Hyundai Spares",
+      message,
+    });
+  } catch (err) {
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+    console.error("Verification email failed to send:", err);
+  }
+
+  // 🔥 UPDATE: ఇక్కడ sendTokenResponse ని తీసేసాము.
+  // కాబట్టి కుకీస్ వెళ్ళవు, లాగిన్ అవ్వడు. జస్ట్ మెసేజ్ వెళ్తుంది.
+  res.status(201).json({
+    success: true,
+    message:
+      "Registration successful. Please check your email to verify your account before logging in.",
+  });
+});
+
+/**
+ * @desc    Verify User Email
+ * @route   GET /api/auth/verify-email/:token
+ */
+export const verifyEmail = asyncHandler(async (req, res) => {
+  // 1. Hash the token from the URL to match DB
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(req.params.token)
+    .digest("hex");
+
+  // 2. Find user with valid and unexpired token
+  const user = await User.findOne({
+    emailVerificationToken: hashedToken,
+    emailVerificationExpires: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    throw new AppError("Verification link is invalid or has expired.", 400);
+  }
+
+  // 3. Update user status
+  user.isEmailVerified = true;
+  user.emailVerificationToken = undefined;
+  user.emailVerificationExpires = undefined;
+  await user.save({ validateBeforeSave: false });
+
+  sendSuccess(res, 200, "Email verified successfully! Welcome to the family.");
+});
+
+/**
+ * @desc    Resend Email Verification Link
+ * @route   POST /api/auth/resend-verification
+ */
+export const resendVerificationEmail = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    throw new AppError("Please provide an email address", 400);
+  }
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw new AppError("No user found with this email", 404);
+  }
+
+  if (user.isEmailVerified) {
+    throw new AppError("This email is already verified. Please login.", 400);
+  }
+
+  // కొత్త టోకెన్ జనరేట్ చేయండి
+  const verificationToken = user.createEmailVerificationToken();
+  await user.save({ validateBeforeSave: false });
+
+  const verifyURL = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+  const message = `Here is your new verification link:\n\n${verifyURL}\n\nValid for 24 hours.`;
+
+  try {
+    await sendEmail({
+      email: user.email,
+      subject: "New Verification Link - Varshini Hyundai Spares",
+      message,
+    });
+
+    sendSuccess(res, 200, "Verification link sent to your email!");
+  } catch (err) {
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+    throw new AppError("Email could not be sent. Try again later.", 500);
+  }
 });
 
 /**
@@ -133,10 +258,19 @@ export const loginUser = asyncHandler(async (req, res) => {
     throw new AppError("Invalid credentials", 401);
   }
 
+  // 🔥 NEW UPDATE: ఇమెయిల్ వెరిఫై అవ్వకపోతే లాగిన్ అవ్వనివ్వకూడదు
+  if (!user.isEmailVerified) {
+    throw new AppError(
+      "Please verify your email address to login. Check your inbox for the verification link.",
+      403,
+    );
+  }
+
   if (!user.isActive) {
     throw new AppError("Account is deactivated", 403);
   }
 
+  // వెరిఫై అయితేనే లాగిన్ టోకెన్ ఇస్తాము
   await sendTokenResponse(user, 200, res, "Login successful");
 });
 
