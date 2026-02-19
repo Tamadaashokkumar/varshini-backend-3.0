@@ -5,32 +5,36 @@ dotenv.config();
 
 /**
  * 1. Configure Transporter
- * Gmail SMTP సెట్టింగ్స్.
+ * Gmail SMTP సెట్టింగ్స్ - Render Timeout ఇష్యూ ఫిక్స్ కోసం అప్‌డేట్ చేయబడింది.
  */
 const transporter = nodemailer.createTransport({
   service: "gmail",
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // 587 వాడితే false, 465 అయితే true
+  host: process.env.EMAIL_HOST || "smtp.gmail.com",
+  port: process.env.EMAIL_PORT || 465, // 🔥 Render కి 465 బెస్ట్
+  secure: true, // port 465 వాడితే ఇది కచ్చితంగా true ఉండాలి
   auth: {
     user: process.env.EMAIL_USER, // .env లో EMAIL_USER అని ఉండాలి
     pass: process.env.EMAIL_PASS, // .env లో EMAIL_PASS (App Password)
   },
+  // 🔥 NEW: Render లో Connection Timeout నివారించడానికి
+  tls: {
+    rejectUnauthorized: false,
+  },
+  connectionTimeout: 10000, // 10 సెకన్ల వరకు వెయిట్ చేస్తుంది
 });
 
 /**
- * 2. Main Send Function (UPDATED)
- * ఇది ఇప్పుడు 'options' ఆబ్జెక్ట్ ని తీసుకుంటుంది.
- * { email, subject, message, html }
+ * 2. Main Send Function
+ * ఇది 'options' ఆబ్జెక్ట్ ని తీసుకుంటుంది: { email, subject, message, html }
  */
 const sendEmail = async (options) => {
   try {
     const mailOptions = {
       from: `"Varshini Hyundai Support" <${process.env.EMAIL_USER}>`, // Sender Name
-      to: options.email, // 🔥 ముఖ్యం: Controller నుండి వచ్చిన 'email' ఇక్కడికి వస్తుంది
+      to: options.email, // Controller నుండి వచ్చిన 'email'
       subject: options.subject,
-      text: options.message, // Plain text (Forgot Password కి ఇది వాడుతున్నాం)
-      html: options.html, // HTML content (Cart recovery కి ఇది వాడతాం)
+      text: options.message, // Plain text
+      html: options.html, // HTML content
     };
 
     const info = await transporter.sendMail(mailOptions);
