@@ -95,28 +95,6 @@ const sendTokenResponse = async (user, statusCode, res, message) => {
    ========================================================================== */
 
 /**
- * @desc    User Registration
- * @route   POST /api/auth/register
- */
-// export const registerUser = asyncHandler(async (req, res) => {
-//   const { name, email, password, phone } = req.body;
-
-//   const existingUser = await User.findOne({ email });
-//   if (existingUser) {
-//     throw new AppError("User with this email already exists", 400);
-//   }
-
-//   const user = await User.create({
-//     name,
-//     email,
-//     password,
-//     phone,
-//   });
-
-//   await sendTokenResponse(user, 201, res, "Registration successful");
-// });
-
-/**
  * @desc    User Registration with Email Verification
  * @route   POST /api/auth/register
  */
@@ -152,14 +130,19 @@ export const registerUser = asyncHandler(async (req, res) => {
       message,
     });
   } catch (err) {
-    user.emailVerificationToken = undefined;
-    user.emailVerificationExpires = undefined;
-    await user.save({ validateBeforeSave: false });
-    console.error("Verification email failed to send:", err);
+    // 🔥 NEW: అసలు ఎర్రర్ ఏంటో లాగ్స్ లో ప్రింట్ అవుతుంది
+    console.error("❌ NODEMAILER ERROR IN REGISTER:", err);
+
+    // మెయిల్ వెళ్ళకపోతే డేటాబేస్ నుండి ఆ యూజర్‌ని వెంటనే డిలీట్ చేసేయాలి!
+    await User.findByIdAndDelete(user._id);
+
+    throw new AppError(
+      "Email could not be sent. Please check your internet connection or try again later.",
+      500,
+    );
   }
 
-  // 🔥 UPDATE: ఇక్కడ sendTokenResponse ని తీసేసాము.
-  // కాబట్టి కుకీస్ వెళ్ళవు, లాగిన్ అవ్వడు. జస్ట్ మెసేజ్ వెళ్తుంది.
+  // 4. Send response without tokens (Strict Login Block)
   res.status(201).json({
     success: true,
     message:
@@ -234,9 +217,13 @@ export const resendVerificationEmail = asyncHandler(async (req, res) => {
 
     sendSuccess(res, 200, "Verification link sent to your email!");
   } catch (err) {
+    // 🔥 NEW: అసలు ఎర్రర్ ఏంటో ఇక్కడ ప్రింట్ అవుతుంది
+    console.error("❌ NODEMAILER ERROR IN RESEND:", err);
+
     user.emailVerificationToken = undefined;
     user.emailVerificationExpires = undefined;
     await user.save({ validateBeforeSave: false });
+
     throw new AppError("Email could not be sent. Try again later.", 500);
   }
 });
