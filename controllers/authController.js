@@ -7,6 +7,7 @@ import { OAuth2Client } from "google-auth-library";
 // పాత ఇంపోర్ట్ పక్కనే దీన్ని కూడా చేర్చండి
 import sendEmail, {
   generateVerificationEmailTemplate,
+  generatePasswordResetEmailTemplate,
 } from "../utils/email.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -624,13 +625,20 @@ export const forgotPassword = async (req, res) => {
     await user.save({ validateBeforeSave: false });
 
     const resetURL = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
-    const message = `Forgot your password? Submit a PATCH request with your new password to: \n\n ${resetURL} \n\nIf you didn't forget your password, please ignore this email!`;
+    const message = `Forgot your password? Reset it here: \n\n ${resetURL} \n\nIf you didn't forget your password, please ignore this email!`;
 
     try {
+      // 🔥 NEW: పాస్‌వర్డ్ రీసెట్ HTML జనరేట్ చేస్తున్నాం
+      const htmlContent = generatePasswordResetEmailTemplate(
+        user.name,
+        resetURL,
+      );
+
       await sendEmail({
         email: user.email,
-        subject: "Your Password Reset Token (Valid for 10 min)",
+        subject: "Password Reset Request - Varshini Hyundai Spares", // సబ్జెక్ట్ మార్చాం
         message,
+        html: htmlContent, // ఇక్కడ html పాస్ చేస్తున్నాం
       });
 
       res.status(200).json({

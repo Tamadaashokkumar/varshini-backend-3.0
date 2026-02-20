@@ -137,4 +137,44 @@ export const generateVerificationEmailTemplate = (userName, verifyURL) => {
   `;
 };
 
+// దీన్ని email.js చివరలో యాడ్ చేయండి
+export const generatePasswordResetEmailTemplate = (userName, resetURL) => {
+  return `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; background-color: #ffffff;">
+      <div style="background-color: #002c5f; padding: 25px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; letter-spacing: 1px;">Varshini Hyundai Spares</h1>
+      </div>
+      
+      <div style="padding: 30px; text-align: center;">
+        <h2 style="color: #333333; margin-top: 0;">Hi ${userName},</h2>
+        <p style="color: #555555; font-size: 16px; line-height: 1.6; margin-bottom: 25px;">
+          We received a request to reset your password. Click the button below to create a new password.
+        </p>
+        
+        <a href="${resetURL}" style="display: inline-block; background-color: #002c5f; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+          Reset Password
+        </a>
+        
+        <p style="color: #777777; font-size: 14px; margin-top: 30px;">
+          If the button doesn't work, copy and paste the following link into your browser:
+        </p>
+        <p style="margin: 0;">
+          <a href="${resetURL}" style="color: #0056b3; font-size: 13px; word-break: break-all;">
+            ${resetURL}
+          </a>
+        </p>
+        
+        <p style="color: #e63946; font-size: 14px; margin-top: 25px; font-weight: bold;">
+          If you didn't make this request, you can safely ignore this email. Your password will remain unchanged.
+        </p>
+      </div>
+      
+      <div style="background-color: #f8f9fa; padding: 20px; text-align: center; color: #888888; font-size: 12px; border-top: 1px solid #eeeeee;">
+        <p style="margin: 0 0 5px 0;">This security link is valid for 10 minutes.</p>
+        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Varshini Automobiles. All rights reserved.</p>
+      </div>
+    </div>
+  `;
+};
+
 export default sendEmail;
