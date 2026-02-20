@@ -3,8 +3,11 @@ import { generateTokenPair, verifyRefreshToken } from "../utils/jwt.js";
 import { sendSuccess } from "../utils/response.js";
 import User from "../models/User.js";
 import crypto from "crypto";
-import sendEmail from "../utils/email.js";
 import { OAuth2Client } from "google-auth-library";
+// పాత ఇంపోర్ట్ పక్కనే దీన్ని కూడా చేర్చండి
+import sendEmail, {
+  generateVerificationEmailTemplate,
+} from "../utils/email.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -93,7 +96,6 @@ const sendTokenResponse = async (user, statusCode, res, message) => {
 /* ==========================================================================
    AUTHENTICATION CONTROLLERS
    ========================================================================== */
-
 /**
  * @desc    User Registration with Email Verification
  * @route   POST /api/auth/register
@@ -106,43 +108,45 @@ export const registerUser = asyncHandler(async (req, res) => {
     throw new AppError("User with this email already exists", 400);
   }
 
-  // 1. Create User
-  const user = await User.create({
+  // 1. Create User Instance (డేటాబేస్ లో ఇంకా సేవ్ అవ్వలేదు, కేవలం మెమరీలో ఉంది)
+  const user = new User({
     name,
     email,
     password,
     phone,
-    isEmailVerified: false, // Default ga false
+    isEmailVerified: false,
   });
 
   // 2. Generate Verification Token
   const verificationToken = user.createEmailVerificationToken();
-  await user.save({ validateBeforeSave: false });
 
-  // 3. Send Verification Email
+  // 3. Setup Email
   const verifyURL = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
   const message = `Welcome to Varshini Hyundai Spares, ${user.name}!\n\nPlease verify your email address by clicking on the link below:\n\n${verifyURL}\n\nThis link is valid for 24 hours.`;
 
   try {
+    // 🔥 NEW: HTML జనరేట్ చేస్తున్నాం
+    const htmlContent = generateVerificationEmailTemplate(user.name, verifyURL);
+
     await sendEmail({
       email: user.email,
-      subject: "Verify Your Email Address - Varshini Hyundai Spares",
-      message,
+      subject: "Action Required: Verify Your Email - Varshini Hyundai Spares",
+      message, // ఫాల్ బ్యాక్ కోసం పాత టెక్స్ట్ అలాగే ఉంచుతున్నాం
+      html: htmlContent, // ఇక్కడ html పాస్ చేస్తున్నాం
     });
+
+    await user.save();
   } catch (err) {
-    // 🔥 NEW: అసలు ఎర్రర్ ఏంటో లాగ్స్ లో ప్రింట్ అవుతుంది
-    console.error("❌ NODEMAILER ERROR IN REGISTER:", err);
+    console.error("❌ EMAIL ERROR IN REGISTER:", err);
 
-    // మెయిల్ వెళ్ళకపోతే డేటాబేస్ నుండి ఆ యూజర్‌ని వెంటనే డిలీట్ చేసేయాలి!
-    await User.findByIdAndDelete(user._id);
-
+    // మెయిల్ వెళ్ళలేదు కాబట్టి DB లో అసలు యూజర్ సేవ్ అవ్వడు.
     throw new AppError(
       "Email could not be sent. Please check your internet connection or try again later.",
       500,
     );
   }
 
-  // 4. Send response without tokens (Strict Login Block)
+  // 5. Send response
   res.status(201).json({
     success: true,
     message:
@@ -155,13 +159,11 @@ export const registerUser = asyncHandler(async (req, res) => {
  * @route   GET /api/auth/verify-email/:token
  */
 export const verifyEmail = asyncHandler(async (req, res) => {
-  // 1. Hash the token from the URL to match DB
   const hashedToken = crypto
     .createHash("sha256")
     .update(req.params.token)
     .digest("hex");
 
-  // 2. Find user with valid and unexpired token
   const user = await User.findOne({
     emailVerificationToken: hashedToken,
     emailVerificationExpires: { $gt: Date.now() },
@@ -171,7 +173,6 @@ export const verifyEmail = asyncHandler(async (req, res) => {
     throw new AppError("Verification link is invalid or has expired.", 400);
   }
 
-  // 3. Update user status
   user.isEmailVerified = true;
   user.emailVerificationToken = undefined;
   user.emailVerificationExpires = undefined;
@@ -201,28 +202,25 @@ export const resendVerificationEmail = asyncHandler(async (req, res) => {
     throw new AppError("This email is already verified. Please login.", 400);
   }
 
-  // కొత్త టోకెన్ జనరేట్ చేయండి
+  // కొత్త టోకెన్ జనరేట్ చేయండి (ఇంకా సేవ్ చేయొద్దు)
   const verificationToken = user.createEmailVerificationToken();
-  await user.save({ validateBeforeSave: false });
 
   const verifyURL = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
   const message = `Here is your new verification link:\n\n${verifyURL}\n\nValid for 24 hours.`;
 
   try {
+    const htmlContent = generateVerificationEmailTemplate(user.name, verifyURL);
+
     await sendEmail({
       email: user.email,
       subject: "New Verification Link - Varshini Hyundai Spares",
       message,
+      html: htmlContent,
     });
 
-    sendSuccess(res, 200, "Verification link sent to your email!");
-  } catch (err) {
-    // 🔥 NEW: అసలు ఎర్రర్ ఏంటో ఇక్కడ ప్రింట్ అవుతుంది
-    console.error("❌ NODEMAILER ERROR IN RESEND:", err);
-
-    user.emailVerificationToken = undefined;
-    user.emailVerificationExpires = undefined;
     await user.save({ validateBeforeSave: false });
+  } catch (err) {
+    console.error("❌ EMAIL ERROR IN RESEND:", err);
 
     throw new AppError("Email could not be sent. Try again later.", 500);
   }
@@ -245,7 +243,6 @@ export const loginUser = asyncHandler(async (req, res) => {
     throw new AppError("Invalid credentials", 401);
   }
 
-  // 🔥 NEW UPDATE: ఇమెయిల్ వెరిఫై అవ్వకపోతే లాగిన్ అవ్వనివ్వకూడదు
   if (!user.isEmailVerified) {
     throw new AppError(
       "Please verify your email address to login. Check your inbox for the verification link.",
@@ -257,7 +254,6 @@ export const loginUser = asyncHandler(async (req, res) => {
     throw new AppError("Account is deactivated", 403);
   }
 
-  // వెరిఫై అయితేనే లాగిన్ టోకెన్ ఇస్తాము
   await sendTokenResponse(user, 200, res, "Login successful");
 });
 

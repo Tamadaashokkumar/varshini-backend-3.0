@@ -101,4 +101,40 @@ export const generateCartEmailTemplate = (userName, items) => {
   `;
 };
 
+// దీన్ని email.js చివరలో యాడ్ చేయండి
+export const generateVerificationEmailTemplate = (userName, verifyURL) => {
+  return `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; background-color: #ffffff;">
+      <div style="background-color: #002c5f; padding: 25px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; letter-spacing: 1px;">Varshini Hyundai Spares</h1>
+      </div>
+      
+      <div style="padding: 30px; text-align: center;">
+        <h2 style="color: #333333; margin-top: 0;">Welcome, ${userName}! 👋</h2>
+        <p style="color: #555555; font-size: 16px; line-height: 1.6; margin-bottom: 25px;">
+          Thank you for registering with us. To activate your account and start exploring premium genuine Hyundai spare parts, please verify your email address.
+        </p>
+        
+        <a href="${verifyURL}" style="display: inline-block; background-color: #002c5f; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+          Verify My Email
+        </a>
+        
+        <p style="color: #777777; font-size: 14px; margin-top: 30px;">
+          If the button doesn't work, copy and paste the following link into your browser:
+        </p>
+        <p style="margin: 0;">
+          <a href="${verifyURL}" style="color: #0056b3; font-size: 13px; word-break: break-all;">
+            ${verifyURL}
+          </a>
+        </p>
+      </div>
+      
+      <div style="background-color: #f8f9fa; padding: 20px; text-align: center; color: #888888; font-size: 12px; border-top: 1px solid #eeeeee;">
+        <p style="margin: 0 0 5px 0;">This link is valid for 24 hours.</p>
+        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Varshini Automobiles. All rights reserved.</p>
+      </div>
+    </div>
+  `;
+};
+
 export default sendEmail;
