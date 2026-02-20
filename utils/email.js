@@ -3,38 +3,49 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-/**
- * 1. Configure Transporter
- * Gmail SMTP సెట్టింగ్స్ - Render Timeout ఇష్యూ ఫిక్స్ కోసం అప్‌డేట్ చేయబడింది.
- */
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587, // 🔥 465 కి బదులుగా 587 వాడండి (Render కి ఇది బాగా వర్క్ అవుతుంది)
-  secure: false, // 🔥 587 పోర్ట్ వాడినప్పుడు ఇది కచ్చితంగా 'false' ఉండాలి (STARTTLS ఉపయోగిస్తుంది)
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false,
-  },
-});
-
 const sendEmail = async (options) => {
   try {
-    const mailOptions = {
-      from: `"Varshini Hyundai Support" <${process.env.EMAIL_USER}>`,
-      to: options.email,
-      subject: options.subject,
-      text: options.message,
-      html: options.html,
-    };
+    // డైరెక్ట్ గా Brevo API కి రిక్వెస్ట్ పంపుతున్నాం
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "api-key": process.env.BREVO_API_KEY, // మీ సీక్రెట్ కీ ఇక్కడ వాడతాం
+      },
+      body: JSON.stringify({
+        sender: {
+          name: "Varshini Hyundai Spares",
+          email: process.env.BREVO_SENDER_EMAIL, // Brevo లో మీరు ఏ మెయిల్ తో రిజిస్టర్ అయ్యారో అదే ఇవ్వాలి
+        },
+        to: [
+          {
+            email: options.email, // యూజర్ ఈమెయిల్
+          },
+        ],
+        subject: options.subject,
+        // html లేకపోతే నార్మల్ మెసేజ్ ని పంపిస్తాం
+        htmlContent:
+          options.html ||
+          `<p style="font-size: 16px; color: #333;">${options.message.replace(/\n/g, "<br>")}</p>`,
+        textContent: options.message,
+      }),
+    });
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log("✅ Email sent successfully ID: %s", info.messageId);
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("❌ Brevo API Error Details:", errorData);
+      throw new Error(errorData.message || "Email sending failed at Brevo");
+    }
+
+    const data = await response.json();
+    console.log(
+      "✅ Email sent successfully via Brevo, MessageId:",
+      data.messageId,
+    );
     return true;
   } catch (error) {
-    console.error("❌ Email sending failed:", error);
+    console.error("❌ Brevo Catch Error:", error.message);
     throw new Error(error.message);
   }
 };
