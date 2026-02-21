@@ -281,7 +281,7 @@ export const googleLogin = asyncHandler(async (req, res) => {
         name,
         email,
         password: randomPassword,
-        phone: "",
+        phone: "0000000000",
         role: "customer",
         isEmailVerified: true,
         isActive: true,
